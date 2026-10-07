@@ -29,11 +29,23 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # -------------------------------------------------------
-      # 3. Android SDK
-      # -------------------------------------------------------
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+
+      - name: Verify Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+
+          test -d "$ANDROID_HOME/build-tools/36.0.0"
+
+          echo "Android API 36 installed successfully."
 
       - name: Install Android SDK packages
         run: |
