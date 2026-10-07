@@ -1,0 +1,6 @@
+{
+  "name": "Sivumi - Private Companion & Wellness",
+  "description": "A soft, caring private wellness and cycle companion for Sivuu with PCOS care, food logging, daily check-ins, and offline caring chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
