@@ -2,17 +2,25 @@ package com.sivumi.offline
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.widget.FrameLayout
+
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+
 
 class MainActivity : Activity() {
 
@@ -29,6 +37,8 @@ class MainActivity : Activity() {
     }
 
 
+    private lateinit var rootContainer: FrameLayout
+
     private lateinit var webView: WebView
 
     private lateinit var gemmaBridge: GemmaBridge
@@ -43,12 +53,142 @@ class MainActivity : Activity() {
 
 
         // ====================================================
+        // Android 15+ uses edge-to-edge by default.
+        //
+        // Explicitly enable it on all supported Android
+        // versions so inset behavior stays consistent.
+        // ====================================================
+
+        WindowCompat.enableEdgeToEdge(window)
+
+
+        // ====================================================
+        // System-bar icon appearance
+        //
+        // Sivumi uses a light background, so use dark icons
+        // in the status/navigation bars.
+        // ====================================================
+
+        WindowCompat
+            .getInsetsController(
+                window,
+                window.decorView
+            )
+            .apply {
+
+                isAppearanceLightStatusBars = true
+
+                isAppearanceLightNavigationBars = true
+            }
+
+
+        // ====================================================
+        // Root container
+        //
+        // System insets are applied HERE rather than using
+        // hard-coded CSS padding.
+        //
+        // Therefore the whole WebView automatically avoids:
+        //
+        // - status bar
+        // - camera notch / display cutout
+        // - navigation bar
+        // - gesture navigation area
+        // ====================================================
+
+        rootContainer =
+            FrameLayout(this).apply {
+
+                setBackgroundColor(
+                    Color.rgb(
+                        250,
+                        248,
+                        245
+                    )
+                )
+            }
+
+
+        setContentView(
+            rootContainer
+        )
+
+
+        // ====================================================
+        // Apply Android system-safe areas
+        // ====================================================
+
+        ViewCompat.setOnApplyWindowInsetsListener(
+            rootContainer
+        ) { view, windowInsets ->
+
+
+            val safeInsets =
+                windowInsets.getInsets(
+
+                    WindowInsetsCompat.Type.systemBars() or
+
+                    WindowInsetsCompat.Type.displayCutout()
+                )
+
+
+            // ------------------------------------------------
+            // Keep the ENTIRE application UI inside
+            // Android's safe area.
+            // ------------------------------------------------
+
+            view.setPadding(
+                safeInsets.left,
+                safeInsets.top,
+                safeInsets.right,
+                safeInsets.bottom
+            )
+
+
+            Log.i(
+                TAG,
+                "System insets: " +
+                    "left=${safeInsets.left}, " +
+                    "top=${safeInsets.top}, " +
+                    "right=${safeInsets.right}, " +
+                    "bottom=${safeInsets.bottom}"
+            )
+
+
+            windowInsets
+        }
+
+
+        // ====================================================
         // WebView
         // ====================================================
 
-        webView = WebView(this)
+        webView =
+            WebView(this).apply {
 
-        setContentView(webView)
+                setBackgroundColor(
+                    Color.rgb(
+                        250,
+                        248,
+                        245
+                    )
+                )
+            }
+
+
+        rootContainer.addView(
+            webView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+
+        // Request the initial inset calculation.
+        ViewCompat.requestApplyInsets(
+            rootContainer
+        )
 
 
         // ====================================================
@@ -61,33 +201,46 @@ class MainActivity : Activity() {
 
             domStorageEnabled = true
 
+
+            /*
+             * We use WebViewAssetLoader instead of file://.
+             */
             allowFileAccess = false
 
             allowContentAccess = false
 
+
             cacheMode =
                 WebSettings.LOAD_DEFAULT
 
+
             mixedContentMode =
                 WebSettings.MIXED_CONTENT_NEVER_ALLOW
+
 
             mediaPlaybackRequiresUserGesture = true
         }
 
 
         // ====================================================
-        // Serve APK assets through local HTTPS origin
+        // Local WebView asset server
+        //
+        // This is NOT Internet access.
+        //
+        // Files are served directly from the APK.
         // ====================================================
 
         val assetLoader =
             WebViewAssetLoader
                 .Builder()
+
                 .addPathHandler(
                     "/assets/",
                     WebViewAssetLoader.AssetsPathHandler(
                         this
                     )
                 )
+
                 .build()
 
 
@@ -123,6 +276,10 @@ class MainActivity : Activity() {
                         )
                 }
 
+
+                // ============================================
+                // Prevent navigation outside the offline app
+                // ============================================
 
                 override fun shouldOverrideUrlLoading(
                     view: WebView,
@@ -164,12 +321,10 @@ class MainActivity : Activity() {
                     )
 
 
-                    /*
-                     * Debug React status.
-                     *
-                     * This lets adb logcat tell us whether
-                     * React rendered anything into #root.
-                     */
+                    // ========================================
+                    // Debug React rendering
+                    // ========================================
+
                     view.evaluateJavascript(
                         """
                         (() => {
@@ -178,6 +333,7 @@ class MainActivity : Activity() {
                                 document.getElementById('root');
 
                             return JSON.stringify({
+
                                 href:
                                     location.href,
 
@@ -189,6 +345,7 @@ class MainActivity : Activity() {
 
                                 bodyLength:
                                     document.body?.innerHTML?.length || 0
+
                             });
 
                         })();
@@ -205,7 +362,7 @@ class MainActivity : Activity() {
 
 
         // ====================================================
-        // Forward JavaScript console into adb logcat
+        // JavaScript console -> adb logcat
         // ====================================================
 
         webView.webChromeClient =
@@ -231,7 +388,7 @@ class MainActivity : Activity() {
 
 
         // ====================================================
-        // Native Gemma bridge
+        // Gemma native bridge
         // ====================================================
 
         gemmaBridge =
@@ -248,7 +405,7 @@ class MainActivity : Activity() {
 
 
         // ====================================================
-        // Load React app
+        // Load Sivumi
         // ====================================================
 
         Log.i(
@@ -264,7 +421,7 @@ class MainActivity : Activity() {
 
 
     // ========================================================
-    // Restrict WebView navigation to bundled content
+    // Only allow the bundled local WebView origin
     // ========================================================
 
     private fun isLocalUrl(
