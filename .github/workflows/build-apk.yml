@@ -89,6 +89,43 @@ jobs:
       # -------------------------------------------------------
       - name: Copy web assets into Android
         run: bun run android:assets
+      - name: Verify Android web assets
+        run: |
+          echo "================================"
+          echo "Android bundled web application"
+          echo "================================"
+
+          test -f \
+            android/app/src/main/assets/www/index.html
+
+          echo ""
+          echo "index.html:"
+          cat android/app/src/main/assets/www/index.html
+
+          echo ""
+          echo "Bundled files:"
+          find android/app/src/main/assets/www \
+            -maxdepth 3 \
+            -type f \
+            | sort
+
+          echo ""
+          echo "Checking compiled JavaScript..."
+
+          JS_COUNT=$(find \
+            android/app/src/main/assets/www/assets \
+            -type f \
+            -name "*.js" \
+            | wc -l)
+
+          echo "JavaScript files: $JS_COUNT"
+
+          if [ "$JS_COUNT" -eq 0 ]; then
+            echo "ERROR: No compiled Vite JavaScript found."
+            exit 1
+          fi
+
+            echo "Android web assets OK."
 
       # -------------------------------------------------------
       # 9. Download REAL Gemma 3 270M model
